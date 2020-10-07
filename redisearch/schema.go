@@ -2,11 +2,15 @@ package redisearch
 
 import (
 	"fmt"
+
 	"github.com/gomodule/redigo/redis"
 )
 
 // FieldType is an enumeration of field/property types
 type FieldType int
+
+// DoubleMetaphoneType is an enumeration of DoubleMetaphone types for Phonetic attribute
+type DoubleMetaphoneType string
 
 // Options are flags passed to the the abstract Index call, which receives them as interface{}, allowing
 // for implementation specific options
@@ -120,12 +124,27 @@ type Field struct {
 	Options  interface{}
 }
 
+const (
+	// English DoubleMetaphone
+	DmEnglish DoubleMetaphoneType = "dm:en"
+
+	// French DoubleMetaphone
+	DmFrench DoubleMetaphoneType = "dm:fr"
+
+	// Portuguese DoubleMetaphone
+	DmPortuguese DoubleMetaphoneType = "dm:pt"
+
+	// Spanish DoubleMetaphone
+	DmSpanish DoubleMetaphoneType = "dm:es"
+)
+
 // TextFieldOptions Options for text fields - weight and stemming enabled/disabled.
 type TextFieldOptions struct {
 	Weight   float32
 	Sortable bool
 	NoStem   bool
 	NoIndex  bool
+	Phonetic DoubleMetaphoneType
 }
 
 // TagFieldOptions options for indexing tag fields
@@ -311,6 +330,9 @@ func serializeField(f Field, args redis.Args) (argsOut redis.Args, err error) {
 			}
 			if opts.NoIndex {
 				argsOut = append(argsOut, "NOINDEX")
+			}
+			if opts.Phonetic != 0 && opts.Phonetic != 1 {
+				argsOut = append(argsOut, "PHONETIC", opts.Phonetic)
 			}
 		}
 	case NumericField:
