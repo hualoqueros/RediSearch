@@ -331,9 +331,8 @@ func serializeField(f Field, args redis.Args) (argsOut redis.Args, err error) {
 			if opts.NoIndex {
 				argsOut = append(argsOut, "NOINDEX")
 			}
-			if opts.Phonetic != "" {
-				argsOut = append(argsOut, "PHONETIC", opts.Phonetic)
-			}
+
+			argsOut = append(argsOut, "PHONETIC", opts.Phonetic)
 		}
 	case NumericField:
 		argsOut = append(argsOut, f.Name, "NUMERIC")
