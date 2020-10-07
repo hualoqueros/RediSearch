@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/RediSearch/redisearch-go/redisearch"
 	"github.com/gomodule/redigo/redis"
+	"github.com/hualoqueros/redisearchgo/redisearch"
 )
 
 // exemplifies the NewClient function

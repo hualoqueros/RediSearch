@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/RediSearch/redisearch-go/redisearch"
+	"github.com/hualoqueros/redisearchgo/redisearch"
 )
 
 // exemplifies the CreateIndex function with a temporary index specification
