@@ -1,0 +1,73 @@
+site_name: RediSearch Documentation
+site_url: https://oss.redislabs.com/redisearch
+repo_url: https://github.com/RediSearch/RediSearch
+repo_name: RediSearch/RediSearch
+
+google_analytics:
+  - 'UA-92003007-1'
+  - 'auto'
+
+extra_javascript:
+  - gtm.js
+
+markdown_extensions:
+  - codehilite
+  - toc:
+      permalink: True
+      separator: "_"
+      toc_depth: 3
+  - admonition
+
+use_directory_urls: true
+theme:
+  name: 'material'
+  language: 'en'
+  logo: 'img/logo_small.png'
+  favicon: 'img/favicon.png'
+  palette:
+    primary: 'indigo'
+    accent: 'red'
+  font:
+    text: 'Roboto'
+    code: 'Roboto Mono'
+  feature:
+    tabs: false
+
+nav:
+  - 'Home': 'index.md'
+  - 'Quick Start': 'Quick_Start.md'
+  - 'Command Reference': 'Commands.md'
+  - 'Configuration': 'Configuring.md'
+  - 'Development': 'Development.md'
+  - 'Clients': 'Clients.md'
+  
+  - Administration:
+    - 'General administration': "Administration.md"
+    - 'Upgrade to 2.0 when running in Redis OSS': Upgrade_to_2.0.md
+  - Reference:
+    - 'Query Syntax': 'Query_Syntax.md'
+    - 'Stop-Words': 'Stopwords.md'
+    - 'Aggregations': 'Aggregations.md'
+    - 'Tokenization and Escaping': 'Escaping.md'
+    - 'Sortable Values': 'Sorting.md'
+    - 'Tag Fields': 'Tags.md'
+    - 'Highlighting Results': Highlight.md
+    - 'Scoring Documents': 'Scoring.md'
+    - 'Extension API': Extensions.md
+    - 'Stemming Support': Stemming.md
+    - 'Synonyms Support': Synonyms.md
+    - 'Document Payloads': payloads.md
+    - 'Spelling Correction': Spellcheck.md
+    - 'Phonetic Matching': Phonetic_Matching.md
+
+  - Design Documents:
+    - 'Garbage Collection': 'design/gc.md'
+  - 'Chinese Support': 'Chinese.md'
+
+  - 'Contributor agreement': contrib.md
+
+plugins:
+  - search
+  - versions-menu:
+      exclude-regexes:
+        - 'v1\.8\.[0-9]+'

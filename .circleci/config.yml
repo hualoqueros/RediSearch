@@ -1,123 +1,239 @@
-# Golang CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
+
+defaults:
+  default_jobs: &default_jobs
+    - centos
+    - ubuntu
+
+commands:
+  abort_for_docs:
+    steps:
+      - run:
+          name: Avoid tests for docs
+          command: |
+            if [[ $CIRCLE_BRANCH == *_docs ]]; then
+              echo "Identifies as documents PR, no testing required"
+              circleci step halt
+            fi
+
+  early_return_for_forked_pull_requests:
+    description: >-
+      If this build is from a fork, stop executing the current job and return success.
+      This is useful to avoid steps that will fail due to missing credentials.
+    steps:
+      - run:
+          name: Early return if this build is from a forked PR
+          command: |
+            if [[ -n "$CIRCLE_PR_NUMBER" ]]; then
+              echo "Nothing to do for forked PRs, so marking this step successful"
+              circleci step halt
+            fi
+
+  ci_steps:
+    steps:
+      - abort_for_docs
+      - checkout
+      - run:
+          name: Get Dependencies
+          command: ./.circleci/ci_get_deps.sh
+      - run:
+          name: Build
+          command: ./.circleci/ci_build.sh
+      - run:
+          name: Test
+          command: ./.circleci/ci_test.sh
+      - run:
+          name: Package
+          command: COMPAT_DIR=$BUILD_DIR make pack
+          environment:
+            - PACKAGE_NAME: redisearch-oss
+      - early_return_for_forked_pull_requests
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - '*.zip'
+            - '*.tgz'
+            - snapshots/*.zip
+            - snapshots/*.tgz
+
 jobs:
-  build-tls:
-    machine:
-      enabled: true
-      image: ubuntu-1604:202004-01
+  ubuntu:
+    docker:
+      - image: redisfab/rmbuilder:6.0.7-x64-buster
+    environment:
+      - BUILD_DIR: build-debian
     steps:
+      - ci_steps
+      - store_artifacts:
+          path: build-debian/logs
+
+  centos:
+    docker:
+      - image: redisfab/rmbuilder:6.0.7-x64-centos7
+    environment:
+      - BUILD_DIR: build-el
+    steps:
+      - ci_steps
+      - store_artifacts:
+          path: build-el/logs
+
+  macos:
+    macos:
+      xcode: 11.3.0
+    environment:
+      - BUILD_DIR: build-macos
+    steps:
+      - ci_steps
+      - store_artifacts:
+          path: build-macos/logs
+
+  deploy_snapshots:
+    docker:
+      - image: redisfab/rmbuilder:6.0.7-x64-buster
+    steps:
+      - abort_for_docs
+      - early_return_for_forked_pull_requests
+      - attach_workspace:
+          at: ~/workspace
+      - run:
+          name: Deploy Snapshots to S3
+          command: |
+            cd ~/workspace/snapshots
+            for f in *.zip *.tgz; do
+              aws s3 cp $f s3://redismodules/$PACKAGE_NAME/snapshots/ --acl public-read
+            done
+
+  debug_asan:
+    docker:
+      - image: redisfab/clang:4.0.1-x64-stretch
+    steps:
+      - abort_for_docs
       - checkout
       - run:
-          name: Setting GOPATH
-          command: |
-            go version
-            go env -w GOPATH=$HOME/go
+          name: Run & build tests
+          command: ASAN=1 ./.circleci/ci_diag_san.sh
+      - store_artifacts:
+          path: build-asan/logs
+
+  debug_msan:
+    docker:
+      - image: redisfab/clang:4.0.1-x64-stretch
+    steps:
+      - abort_for_docs
+      - checkout
       - run:
-          name: Generate a root CA and a server certificate using redis helpers
-          command: |
-            git clone git://github.com/antirez/redis.git --branch 6.0.6
-            cd redis
-            ./utils/gen-test-certs.sh
-            cd ..
+          name: Run & build tests
+          command: MSAN=1 ./.circleci/ci_diag_san.sh
+      - store_artifacts:
+          path: build-msan/logs
+
+  coverage:
+    docker:
+      - image: redisfab/rmbuilder:6.0.7-x64-buster
+    steps:
+      - abort_for_docs
+      - checkout
       - run:
-          name: Copy RediSearch
-          command: |
-            docker run --rm --entrypoint cat redislabs/redisearch:edge  /usr/lib/redis/modules/redisearch.so > redisearch.so
-            chmod 755 redisearch.so
+          name: Build & Test
+          command: ./.circleci/ci_coverage.sh
+      - store_artifacts:
+          path: coverage
+          destination: coverage
+      - store_artifacts:
+          path: build-coverage/logs
+
+  deploy_release:
+    docker:
+      - image: redisfab/rmbuilder:6.0.7-x64-buster
+    steps:
+      - abort_for_docs
+      - early_return_for_forked_pull_requests
+      - attach_workspace:
+          at: ~/workspace
       - run:
-          name: Run RediSearch with tls support
+          name: Deploy Releases to S3
           command: |
-            docker run -d -v $(pwd)/redisearch.so:/data/redisearch.so \
-                       -v $(pwd)/redis/tests/tls/:/data \
-                       -p 6379:6379 redis redis-server --tls-port 6379 --port 0  \
-                       --tls-cert-file /data/redis.crt  \
-                       --tls-key-file /data/redis.key  \
-                       --tls-ca-cert-file /data/ca.crt \
-                       --tls-auth-clients no  --loadmodule /data/redisearch.so
-      - run:
-          name: Run Examples
-          command: |
-            make examples TLS_CERT=redis/tests/tls/redis.crt \
-                          TLS_KEY=redis/tests/tls/redis.key \
-                          TLS_CACERT=redis/tests/tls/ca.crt
+            cd ~/workspace
+            for f in *.zip *.tgz; do
+              aws s3 cp $f s3://redismodules/$PACKAGE_NAME/ --acl public-read
+            done
 
-  build: # test with redisearch:edge
-    docker:
-      - image: circleci/golang:1.12
-      - image: redislabs/redisearch:edge
 
-    working_directory: /go/src/github.com/RediSearch/redisearch-go
-    steps:
-      - checkout
-      - run: make get
-      - run: make checkfmt
-      - run: make test
-      - run: make godoc_examples
-      - run: make coverage
-      - run: bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+on-any-branch: &on-any-branch
+  filters:
+    branches:
+      only: /.*/
+    tags:
+      only: /.*/
 
-  build-latest:
-    docker:
-      - image: circleci/golang:1.12
-      - image: redislabs/redisearch:latest
+never: &never
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      ignore: /.*/
 
-    working_directory: /go/src/github.com/RediSearch/redisearch-go
-    steps:
-      - checkout
-      - run: make test
+on-master: &on-master
+  filters:
+    branches:
+      only: master
 
-  build-v16:
-    docker:
-      - image: circleci/golang:1.12
-      - image: redislabs/redisearch:1.6.13
+on-version-tags: &on-version-tags
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      only: /^v[0-9].*/
 
-    working_directory: /go/src/github.com/RediSearch/redisearch-go
-    steps:
-      - checkout
-      - run: make test
+on-master-and-version-tags: &on-master-and-version-tags
+  filters:
+    branches:
+      only:
+        - master
+    tags:
+      only: /^v[0-9].*/
 
-  build-v14:
-    docker:
-      - image: circleci/golang:1.12
-      - image: redislabs/redisearch:1.4.28
+on-master-and-version-branches: &on-master-and-version-branches
+  filters:
+    branches:
+      only:
+        - master
+        - /^[0-9]+\.[0-9]+$/
+    tags:
+      ignore: /.*/
 
-    working_directory: /go/src/github.com/RediSearch/redisearch-go
-    steps:
-      - checkout
-      - run: make test
-
-  build_nightly: # test nightly with redisearch:edge
-    docker:
-      - image: circleci/golang:1.12
-      - image: redislabs/redisearch:edge
-
-    working_directory: /go/src/github.com/RediSearch/redisearch-go
-    steps:
-      - checkout
-      - run: make test
 
 workflows:
   version: 2
-  commit:
+
+  default_flow:
     jobs:
-      - build
-      - build-tls
-      - build-latest
-      - build-v16
-      - build-v14
+      - ubuntu:
+          <<: *on-any-branch
+      - centos:
+          <<: *on-any-branch
+      - macos:
+          <<: *on-version-tags
+      - debug_asan:
+          <<: *on-any-branch
+      - debug_msan:
+          <<: *on-any-branch
+      - coverage:
+          <<: *on-any-branch
+      - deploy_snapshots:
+          requires: *default_jobs
+          <<: *on-master
+      - deploy_release:
+          requires: *default_jobs
+          <<: *on-version-tags
+
   nightly:
     triggers:
       - schedule:
-          cron: "0 0 * * *"
+          cron: "20 17 * * *"
           filters:
-            branches:
-              only:
-                - master
+             branches:
+               only:
+                 - master
     jobs:
-      - build_nightly
-      - build-tls
-      - build-latest
-      - build-v16
-      - build-v14
+      - macos

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 *
 !/**/
 !**/*.go
@@ -7,3 +8,33 @@
 !.circleci/config.yml
 !/tests/*.bz2
 !Makefile
+=======
+*.pyc
+*.o
+*.d
+*.pyo
+*.so
+*.a
+*.out
+*.log
+*.aof
+*.rdb
+*.DS_Store
+*.dSYM
+*.zip
+*.gz
+*.bz2
+*.tar
+/site/*
+/build*/
+/artifacts/
+/venv*/
+srcutil/lemon
+src/query_parser/lemon
+.vscode/*
+.idea/*
+.project
+.cproject
+VSCODE.DB*
+callgrind.out.*
+>>>>>>> c926cae0f788d95f0d887ee41df5f1551de704d8
